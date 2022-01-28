@@ -174,51 +174,49 @@ def new_member(bot: Bot, update: Update, job_queue: JobQueue):
         if new_mem.is_bot:
             should_mute = False
 
-        if user.id == new_mem.id:
-            if should_mute:
-                if welc_mutes == "soft":
-                    bot.restrict_chat_member(chat.id, new_mem.id,
-                                             can_send_messages=True,
-                                             can_send_media_messages=False,
-                                             can_send_other_messages=False,
-                                             can_add_web_page_previews=False,
-                                             until_date=(int(time.time() + 24 * 60 * 60)))
+        if user.id == new_mem.id and should_mute:
+            if welc_mutes == "soft":
+                bot.restrict_chat_member(chat.id, new_mem.id,
+                                         can_send_messages=True,
+                                         can_send_media_messages=False,
+                                         can_send_other_messages=False,
+                                         can_add_web_page_previews=False,
+                                         until_date=(int(time.time() + 24 * 60 * 60)))
 
-                if welc_mutes == "strong":
-                    welcome_bool = False
-                    VERIFIED_USER_WAITLIST.update({
-                        new_mem.id : {
-                            "should_welc" : should_welc,
-                            "status" : False,
-                            "update" : update,
-                            "res" : res,
-                            "keyboard" : keyboard,
-                            "backup_message" : backup_message
-                        }
-                    })
-                    new_join_mem = f"[{escape_markdown(new_mem.first_name)}](tg://user?id={user.id})"
-                    message = msg.reply_text(f"{new_join_mem}, click the button below to prove you're human.\nYou have 160 seconds.",
-                                             reply_markup=InlineKeyboardMarkup([{InlineKeyboardButton(
-                                                 text="Yes, I'm human.",
-                                                 callback_data=f"user_join_({new_mem.id})")}]),
-                                             parse_mode=ParseMode.MARKDOWN)
-                    bot.restrict_chat_member(chat.id, new_mem.id,
-                                             can_send_messages=False,
-                                             can_send_media_messages=False,
-                                             can_send_other_messages=False,
-                                             can_add_web_page_previews=False)
+            if welc_mutes == "strong":
+                welcome_bool = False
+                VERIFIED_USER_WAITLIST.update({
+                    new_mem.id : {
+                        "should_welc" : should_welc,
+                        "status" : False,
+                        "update" : update,
+                        "res" : res,
+                        "keyboard" : keyboard,
+                        "backup_message" : backup_message
+                    }
+                })
+                new_join_mem = f"[{escape_markdown(new_mem.first_name)}](tg://user?id={user.id})"
+                message = msg.reply_text(f"{new_join_mem}, click the button below to prove you're human.\nYou have 160 seconds.",
+                                         reply_markup=InlineKeyboardMarkup([{InlineKeyboardButton(
+                                             text="Yes, I'm human.",
+                                             callback_data=f"user_join_({new_mem.id})")}]),
+                                         parse_mode=ParseMode.MARKDOWN)
+                bot.restrict_chat_member(chat.id, new_mem.id,
+                                         can_send_messages=False,
+                                         can_send_media_messages=False,
+                                         can_send_other_messages=False,
+                                         can_add_web_page_previews=False)
 
-                    job_queue.run_once(
-                        partial(
-                            check_not_bot, new_mem, chat.id, message.message_id
-                        ), 160, name="welcomemute"
-                    )
+                job_queue.run_once(
+                    partial(
+                        check_not_bot, new_mem, chat.id, message.message_id
+                    ), 160, name="welcomemute"
+                )
 
         if welcome_bool:
             sent = send(update, res, keyboard, backup_message)
 
-            prev_welc = sql.get_clean_pref(chat.id)
-            if prev_welc:
+            if prev_welc := sql.get_clean_pref(chat.id):
                 try:
                     bot.delete_message(chat.id, prev_welc)
                 except BadRequest:
@@ -264,8 +262,7 @@ def left_member(bot: Bot, update: Update):
         return
 
     if should_goodbye:
-        left_mem = update.effective_message.left_chat_member
-        if left_mem:
+        if left_mem := update.effective_message.left_chat_member:
             # Ignore bot being kicked
             if left_mem.id == bot.id:
                 return
@@ -281,7 +278,7 @@ def left_member(bot: Bot, update: Update):
                 return
 
             # if media goodbye, use appropriate function for it
-            if goodbye_type != sql.Types.TEXT and goodbye_type != sql.Types.BUTTON_TEXT:
+            if goodbye_type not in [sql.Types.TEXT, sql.Types.BUTTON_TEXT]:
                 ENUM_FUNC_MAP[goodbye_type](chat.id, cust_goodbye)
                 return
 
@@ -341,12 +338,11 @@ def welcome(bot: Bot, update: Update, args: List[str]):
 
                 send(update, welcome_m, keyboard, sql.DEFAULT_WELCOME)
 
-        else:
-            if noformat:
-                ENUM_FUNC_MAP[welcome_type](chat.id, welcome_m)
+        elif noformat:
+            ENUM_FUNC_MAP[welcome_type](chat.id, welcome_m)
 
-            else:
-                ENUM_FUNC_MAP[welcome_type](chat.id, welcome_m, parse_mode=ParseMode.MARKDOWN)
+        else:
+            ENUM_FUNC_MAP[welcome_type](chat.id, welcome_m, parse_mode=ParseMode.MARKDOWN)
 
     elif len(args) >= 1:
         if args[0].lower() in ("on", "yes"):
